@@ -80,8 +80,8 @@ impl Interpreter {
 
     pub fn exec_current_step(&mut self, entry: Option<u8>) -> Option<Effect> {
         if self.waiting_for_input {
-            let value = entry.unwrap_or(0);
-            self.tape[self.ptr] = value;
+            self.tape[self.ptr] = entry.unwrap_or(0);
+            println!("Input received : {}", entry.unwrap_or(0));
             self.waiting_for_input = false;
             self.step += 1;
             return None;

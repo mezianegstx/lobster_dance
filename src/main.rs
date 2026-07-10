@@ -1,4 +1,4 @@
-use std::{fs, thread, time::Duration};
+use std::{fs, io::Read, thread, time::Duration};
 
 mod interpreter;
 use interpreter::Interpreter;
@@ -8,7 +8,7 @@ use cli::CommandLineInterface;
 
 use crate::interpreter::Effect;
 
-const FILE_PATH: &str = "./bf.txt";
+const FILE_PATH: &str = "./bf_files/test.bf";
 const DEFAULT_TAPE_SIZE: usize = 30_000;
 
 #[derive(PartialEq)]
@@ -41,6 +41,8 @@ struct Controller {
 impl Controller {
     fn exec(&mut self) {
         println!("\n");
+        let mut buf = [0u8, 1];
+        let mut entry: Option<u8> = None;
         while self.model.step < self.model.code.len() {
             let erase = self.options.verbose != Verbose::AllSteps;
             if self.options.verbose != Verbose::Mute {
@@ -50,10 +52,12 @@ impl Controller {
                     erase,
                 );
             };
-            let mut entry: Option<u8> = None;
             match self.model.exec_current_step(entry) {
                 Some(effect) => match effect {
-                    Effect::AskInput => entry = Some(50),
+                    Effect::AskInput => match std::io::stdin().read_exact(&mut buf) {
+                        Ok(()) => entry = Some(buf[0] as u8),
+                        Err(_) => entry = None,
+                    },
                     Effect::Output(octet) => print!("{}", octet as char),
                 },
                 None => {}
@@ -71,11 +75,11 @@ impl Controller {
 fn main() {
     let raw_code = fs::read_to_string(FILE_PATH).expect("Error reading the file");
     let mut controller = Controller {
-        // options: ExecOptions {
-        //     delay_ms: 50,
-        //     verbose: Verbose::CurrentStep,
-        // },
-        options: ExecOptions::default(),
+        options: ExecOptions {
+            delay_ms: 50,
+            verbose: Verbose::AllSteps,
+        },
+        // options: ExecOptions::default(),
         model: Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE),
         view: CommandLineInterface {},
     };
