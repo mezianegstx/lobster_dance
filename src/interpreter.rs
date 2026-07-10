@@ -7,6 +7,7 @@ pub struct Interpreter {
     pub tape: Vec<u8>,
     pub ptr: usize,
     pub step: usize,
+    waiting_for_input: bool,
 }
 
 impl fmt::Display for Interpreter {
@@ -22,6 +23,11 @@ impl fmt::Display for Interpreter {
     }
 }
 
+pub enum Effect {
+    Output(u8),
+    AskInput,
+}
+
 impl Interpreter {
     pub fn new(raw_code: String, tape_size: usize) -> Self {
         let mut interp = Self {
@@ -30,6 +36,7 @@ impl Interpreter {
             tape: vec![0u8; tape_size],
             ptr: 0,
             step: 0,
+            waiting_for_input: false,
         };
         match interp.build_bracklet_map() {
             Ok(()) => {}
@@ -71,7 +78,15 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn exec_current_step(&mut self) {
+    pub fn exec_current_step(&mut self, entry: Option<u8>) -> Option<Effect> {
+        if self.waiting_for_input {
+            let value = entry.unwrap_or(0);
+            self.tape[self.ptr] = value;
+            self.waiting_for_input = false;
+            self.step += 1;
+            return None;
+        }
+
         match self.code[self.step] {
             '>' => self.ptr += 1,
             '<' => self.ptr -= 1,
@@ -83,9 +98,18 @@ impl Interpreter {
                 }
             }
             ']' => self.step = self.bracklet_map[self.step] - 1,
+            '.' => {
+                self.step += 1;
+                return Some(Effect::Output(self.tape[self.ptr]));
+            }
+            ',' => {
+                self.waiting_for_input = true;
+                return Some(Effect::AskInput);
+            }
             _ => {}
         };
         self.step += 1;
+        None
     }
 
     pub fn tape(&self) -> &[u8] {
