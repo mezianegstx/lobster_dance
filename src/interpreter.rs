@@ -22,6 +22,20 @@ impl fmt::Display for Interpreter {
     }
 }
 
+pub struct InterpOptions {
+    pub delay_ms: u64,
+    pub verbose: bool,
+}
+
+impl InterpOptions {
+    pub fn default() -> Self {
+        Self {
+            delay_ms: 0,
+            verbose: false,
+        }
+    }
+}
+
 impl Interpreter {
     pub fn new(raw_code: String, tape_size: usize) -> Self {
         let mut interp = Self {
@@ -86,12 +100,14 @@ impl Interpreter {
         };
         self.step += 1;
     }
-    pub fn exec(&mut self, delay_ms: u64) {
+    pub fn exec(&mut self, options: InterpOptions) {
         println!("{:?}", self.bracklet_map);
         while self.step < self.code.len() {
             self.exec_sbs();
-            thread::sleep(Duration::from_millis(delay_ms));
-            println!("{:?}", &(self.tape)[..10])
+            thread::sleep(Duration::from_millis(options.delay_ms));
+            if options.verbose {
+                println!("{} {:?}", self.code[self.step - 1], &(self.tape)[..50])
+            }
         }
     }
 }
