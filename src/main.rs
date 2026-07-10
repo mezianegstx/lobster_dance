@@ -4,6 +4,7 @@ mod interpreter;
 use interpreter::Interpreter;
 
 mod cli;
+use cli::CommandLineInterface;
 
 const FILE_PATH: &str = "./bf.txt";
 const DEFAULT_TAPE_SIZE: usize = 30_000;
@@ -29,31 +30,44 @@ impl ExecOptions {
     }
 }
 
-fn exec(interp: &mut Interpreter, options: ExecOptions) {
-    while interp.step < interp.code.len() {
-        let erase = options.verbose != Verbose::AllSteps;
-        if options.verbose != Verbose::Mute {
-            cli::print_step_by_step(interp.tape(), interp.action(), erase);
+struct Controller {
+    options: ExecOptions,
+    model: Interpreter,
+    view: CommandLineInterface,
+}
+
+impl Controller {
+    fn exec(&mut self) {
+        while self.model.step < self.model.code.len() {
+            let erase = self.options.verbose != Verbose::AllSteps;
+            if self.options.verbose != Verbose::Mute {
+                CommandLineInterface::print_step_by_step(
+                    self.model.tape(),
+                    self.model.action(),
+                    erase,
+                );
+            };
+            self.model.exec_current_step();
+            thread::sleep(Duration::from_millis(self.options.delay_ms));
         }
-        interp.exec_current_step();
-        thread::sleep(Duration::from_millis(options.delay_ms));
-    }
-    if options.verbose == Verbose::CurrentStep {
-        interp.step -= 1;
-        cli::print_step_by_step(interp.tape(), interp.action(), false);
+        if self.options.verbose == Verbose::CurrentStep {
+            self.model.step -= 1;
+            CommandLineInterface::print_step_by_step(self.model.tape(), self.model.action(), false);
+        }
     }
 }
 
 fn main() {
     let raw_code = fs::read_to_string(FILE_PATH).expect("Error reading the file");
-    let mut interp = Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE);
-    // exec(&mut interp, ExecOptions::default());
-    exec(
-        &mut interp,
-        ExecOptions {
+    let mut controller = Controller {
+        options: ExecOptions {
             delay_ms: 50,
-            verbose: Verbose::AllSteps,
+            verbose: Verbose::CurrentStep,
         },
-    );
-    println!("{interp}");
+        model: Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE),
+        view: CommandLineInterface {},
+    };
+    controller.exec();
+
+    println!("{}", controller.model);
 }
