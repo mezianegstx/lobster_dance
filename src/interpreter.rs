@@ -88,18 +88,10 @@ impl Interpreter {
         self.step += 1;
     }
 
-    // pub fn exec(&mut self, options: InterpOptions) {
-    //     println!("{:?}", self.bracklet_map);
-    //     while self.step < self.code.len() {
-    //         self.exec_sbs();
-    //         thread::sleep(Duration::from_millis(options.delay_ms));
-    //         if options.verbose {
-    //             println!("{} {:?}", self.code[self.step - 1], &(self.tape)[..50])
-    //         }
-    //     }
-    // }
-    //
     pub fn tape(&self) -> &[u8] {
         &self.tape
+    }
+    pub fn action(&self) -> char {
+        self.code[self.step]
     }
 }
