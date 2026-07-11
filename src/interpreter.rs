@@ -1,5 +1,18 @@
 use std::fmt;
 
+pub struct InterpreterState {
+    code: Vec<char>,
+    // last_action: Option<char>,
+    tape: Vec<u8>,
+    ptr: usize,
+}
+
+impl InterpreterState {
+    pub fn new(tape: Vec<u8>, code: Vec<char>, ptr: usize) -> Self {
+        Self { code, tape, ptr }
+    }
+}
+
 #[derive(Debug)]
 pub struct Interpreter {
     pub code: Vec<char>,
@@ -122,4 +135,17 @@ impl Interpreter {
     pub fn action(&self) -> char {
         self.code[self.step - 1]
     }
+
+    // pub fn state() -> &InterpreterState {
+    //     // InterpreterState {
+    //     //     code: self.code.clone(),
+    //     //     tape: self.tape.clone(),
+    //     //     ptr: self.ptr,
+    //     // }
+    //     &InterpreterState {
+    //         code: vec!['+', '+', '+', '>', '-', '0', '<'],
+    //         tape: vec![0u8, 100],
+    //         ptr: 1,
+    //     }
+    // }
 }

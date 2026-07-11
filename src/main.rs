@@ -80,7 +80,7 @@ fn main() {
     let mut controller = Controller {
         options: ExecOptions {
             delay_ms: 50,
-            verbose: Verbose::AllSteps,
+            verbose: Verbose::Mute,
         },
         // options: ExecOptions::default(),
         model: Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE),
@@ -89,4 +89,13 @@ fn main() {
     controller.exec();
 
     println!("{}", controller.model);
+}
+
+use crate::interpreter::InterpreterState;
+
+#[test]
+fn test_raratui_view() {
+    let state = InterpreterState::new(vec![0u8, 100], vec!['+', '+', '+', '>', '-', '0', '<'], 1);
+    cli::render(&state);
+    assert!(true);
 }

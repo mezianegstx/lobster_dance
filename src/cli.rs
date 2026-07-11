@@ -3,8 +3,13 @@ use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetForegroundColor},
 };
-use std::io::{Write, stdout};
-
+use ratatui::{
+    DefaultTerminal,
+    layout::{Constraint, Direction, Layout},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+};
+use std::io::{self, Write, stdout};
+use std::{thread, time::Duration};
 pub struct CommandLineInterface {}
 
 impl CommandLineInterface {
@@ -46,4 +51,21 @@ impl CommandLineInterface {
             execute!(stdout(), MoveUp(4)).unwrap();
         }
     }
+}
+
+use crate::interpreter::InterpreterState;
+
+pub fn render(state: &InterpreterState) -> io::Result<()> {
+    let mut term = ratatui::init();
+    let result = term.draw(|frame| {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(3)])
+            .split(frame.area());
+        let widget = Paragraph::new("text").block(Block::default().borders(Borders::ALL));
+        frame.render_widget(widget, chunks[0]);
+    });
+    thread::sleep(Duration::from_millis(3000));
+    ratatui::restore();
+    result.map(|_| ())
 }
