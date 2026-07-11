@@ -26,6 +26,7 @@ impl fmt::Display for Interpreter {
 pub enum Effect {
     Output(u8),
     AskInput,
+    Pass,
 }
 
 impl Interpreter {
@@ -106,7 +107,10 @@ impl Interpreter {
                 self.waiting_for_input = true;
                 return Some(Effect::AskInput);
             }
-            _ => {}
+            _ => {
+                self.step += 1;
+                return Some(Effect::Pass);
+            }
         };
         self.step += 1;
         None
@@ -116,6 +120,6 @@ impl Interpreter {
         &self.tape
     }
     pub fn action(&self) -> char {
-        self.code[self.step]
+        self.code[self.step - 1]
     }
 }

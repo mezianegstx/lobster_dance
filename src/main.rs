@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 use std::{fs, io::Read, thread, time::Duration};
 
 mod interpreter;
@@ -8,7 +10,7 @@ use cli::CommandLineInterface;
 
 use crate::interpreter::Effect;
 
-const FILE_PATH: &str = "./bf_files/test.bf";
+const FILE_PATH: &str = "./bf_files/HelloWord.bf";
 const DEFAULT_TAPE_SIZE: usize = 30_000;
 
 #[derive(PartialEq)]
@@ -44,6 +46,17 @@ impl Controller {
         let mut buf = [0u8, 1];
         let mut entry: Option<u8> = None;
         while self.model.step < self.model.code.len() {
+            match self.model.exec_current_step(entry) {
+                Some(effect) => match effect {
+                    Effect::AskInput => match std::io::stdin().read_exact(&mut buf) {
+                        Ok(()) => entry = Some(buf[0] as u8),
+                        Err(_) => entry = None,
+                    },
+                    Effect::Output(octet) => print!("{}", octet as char),
+                    Effect::Pass => continue,
+                },
+                None => {}
+            }
             let erase = self.options.verbose != Verbose::AllSteps;
             if self.options.verbose != Verbose::Mute {
                 CommandLineInterface::print_step_by_step(
@@ -52,16 +65,6 @@ impl Controller {
                     erase,
                 );
             };
-            match self.model.exec_current_step(entry) {
-                Some(effect) => match effect {
-                    Effect::AskInput => match std::io::stdin().read_exact(&mut buf) {
-                        Ok(()) => entry = Some(buf[0] as u8),
-                        Err(_) => entry = None,
-                    },
-                    Effect::Output(octet) => print!("{}", octet as char),
-                },
-                None => {}
-            }
             thread::sleep(Duration::from_millis(self.options.delay_ms));
         }
         if self.options.verbose == Verbose::CurrentStep {
