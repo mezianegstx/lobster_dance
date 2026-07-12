@@ -3,6 +3,7 @@ use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
+    text::{Line, Span},
     widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
 use std::io::{self, Write, stdout};
@@ -100,7 +101,7 @@ impl CommandLineInterface {
         let result = self.term.draw(|frame| {
             let areas = CommandLineInterface::compute_layout(frame.area());
 
-            CommandLineInterface::render_memory(frame, areas.memory, state.tape(), mode);
+            CommandLineInterface::render_memory(frame, areas.memory, state.tape(), state.ptr, mode);
             CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
             // let widget = Paragraph::new("text").block(
             //     Block::bordered()
@@ -216,19 +217,48 @@ impl CommandLineInterface {
         // }
     }
 
-    fn render_memory(frame: &mut Frame, area: Rect, tape: &Vec<u8>, mode: Mode) {
-        let content = tape[..frame.area().width.div_ceil(4) as usize]
+    fn render_memory(frame: &mut Frame, area: Rect, tape: &Vec<u8>, ptr: usize, mode: Mode) {
+        let raw_content = tape[..(tape.len() - 1).min(frame.area().width.div_ceil(4) as usize)]
             .iter()
             .map(|v| format!("{:3}", v))
             .collect::<Vec<String>>()
             .join(" ");
+        let content = if ptr < 5 {
+            Line::from(vec![
+                Span::raw(&raw_content[..4 * ptr]),
+                Span::styled(
+                    &raw_content[4 * ptr..4 * ptr + 3],
+                    Style::default().fg(Color::LightRed),
+                ),
+                Span::raw(&raw_content[4 * ptr + 3..]),
+            ])
+        } else {
+            Line::from(raw_content)
+        };
+        // let content_before = tape[..ptr]
+        //     .iter()
+        //     .map(|v| format!("{:3}", v))
+        //     .collect::<Vec<String>>()
+        //     .join(" ")
+        //     + " ";
+        // let content_cursor = tape[ptr..ptr + 1]
+        //     .iter()
+        //     .map(|v| format!("{:3}", v))
+        //     .collect::<Vec<String>>()
+        //     .join(" ");
+        // let content_after = " ".to_string()
+        //     + &tape[ptr + 1..]
+        //         .iter()
+        //         .map(|v| format!("{:3}", v))
+        //         .collect::<Vec<String>>()
+        //         .join(" ");
         frame.render_widget(
             Paragraph::new(content).block(
                 Block::bordered()
                     .title("Memory")
                     .border_type(BorderType::Rounded)
                     .border_style(if mode == Mode::Execution {
-                        Style::new().fg(Color::Red)
+                        Style::new().fg(Color::White)
                     } else {
                         Style::new().fg(UNACTIVE_COLOR)
                     }),
