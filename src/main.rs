@@ -34,45 +34,51 @@ impl ExecOptions {
     }
 }
 
+enum Mode {
+    Edition,
+    Execution,
+}
+
 struct Controller {
     options: ExecOptions,
     model: Interpreter,
     view: CommandLineInterface,
+    mode: Mode,
 }
 
 impl Controller {
-    fn exec(&mut self) {
-        println!("\n");
-        let mut buf = [0u8, 1];
-        let mut entry: Option<u8> = None;
-        while self.model.step < self.model.code.len() {
-            match self.model.exec_current_step(entry) {
-                Some(effect) => match effect {
-                    Effect::AskInput => match std::io::stdin().read_exact(&mut buf) {
-                        Ok(()) => entry = Some(buf[0] as u8),
-                        Err(_) => entry = None,
-                    },
-                    Effect::Output(octet) => print!("{}", octet as char),
-                    Effect::Pass => continue,
-                },
-                None => {}
-            }
-            let erase = self.options.verbose != Verbose::AllSteps;
-            if self.options.verbose != Verbose::Mute {
-                CommandLineInterface::print_step_by_step(
-                    self.model.tape(),
-                    self.model.action(),
-                    erase,
-                );
-            };
-            thread::sleep(Duration::from_millis(self.options.delay_ms));
-        }
-        if self.options.verbose == Verbose::CurrentStep {
-            self.model.step -= 1;
-            CommandLineInterface::print_step_by_step(self.model.tape(), self.model.action(), false);
-        }
-        println!("\n");
-    }
+    // fn exec(&mut self) {
+    //     println!("\n");
+    //     let mut buf = [0u8, 1];
+    //     let mut entry: Option<u8> = None;
+    //     while self.model.step < self.model.code.len() {
+    //         match self.model.exec_current_step(entry) {
+    //             Some(effect) => match effect {
+    //                 Effect::AskInput => match std::io::stdin().read_exact(&mut buf) {
+    //                     Ok(()) => entry = Some(buf[0] as u8),
+    //                     Err(_) => entry = None,
+    //                 },
+    //                 Effect::Output(octet) => print!("{}", octet as char),
+    //                 Effect::Pass => continue,
+    //             },
+    //             None => {}
+    //         }
+    //         let erase = self.options.verbose != Verbose::AllSteps;
+    //         if self.options.verbose != Verbose::Mute {
+    //             CommandLineInterface::print_step_by_step(
+    //                 self.model.tape(),
+    //                 self.model.action(),
+    //                 erase,
+    //             );
+    //         };
+    //         thread::sleep(Duration::from_millis(self.options.delay_ms));
+    //     }
+    //     if self.options.verbose == Verbose::CurrentStep {
+    //         self.model.step -= 1;
+    //         CommandLineInterface::print_step_by_step(self.model.tape(), self.model.action(), false);
+    //     }
+    //     println!("\n");
+    // }
 }
 
 fn main() {
@@ -84,18 +90,15 @@ fn main() {
         },
         // options: ExecOptions::default(),
         model: Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE),
-        view: CommandLineInterface {},
+        view: CommandLineInterface::new(),
+        mode: Mode::Edition,
     };
-    controller.exec();
+    //controller.exec();
 
+    let state = InterpreterState::new(vec![0u8, 100], vec!['+', '+', '+', '>', '-', '0', '<'], 1);
+    controller.view.render(&state, controller.mode);
+    thread::sleep(Duration::from_millis(10000));
     println!("{}", controller.model);
 }
 
 use crate::interpreter::InterpreterState;
-
-#[test]
-fn test_raratui_view() {
-    let state = InterpreterState::new(vec![0u8, 100], vec!['+', '+', '+', '>', '-', '0', '<'], 1);
-    cli::render(&state);
-    assert!(true);
-}
