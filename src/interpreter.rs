@@ -11,6 +11,10 @@ impl InterpreterState {
     pub fn new(tape: Vec<u8>, code: Vec<char>, ptr: usize) -> Self {
         Self { code, tape, ptr }
     }
+
+    pub fn tape(&self) -> &Vec<u8> {
+        &self.tape
+    }
 }
 
 #[derive(Debug)]

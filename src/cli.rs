@@ -15,19 +15,39 @@ pub struct CommandLineInterface {
 }
 
 struct Areas {
-    tape: Rect,
+    memory: Rect,
     editor: Rect,
     infos: Rect,
     output: Rect,
     input: Rect,
 }
 
-struct Area {
-    rect: Rect,
-    title: String,
-    style: Style,
-    active_mode: Mode,
-}
+// struct Area {
+//     rect: Rect,
+//     title: String,
+//     style: Style,
+// }
+
+// impl Area {
+//     fn new(rect: Rect, title: String, active_mode: Mode, active_color: Color, mode: Mode) -> Self {
+//         Self {
+//             rect,
+//             title,
+//             style: if active_mode == mode {
+//                 Style::new().fg(active_color)
+//             } else {
+//                 Style::new().fg(Color::Gray)
+//             },
+//         }
+//     }
+
+//     fn create_block(&self) -> Block {
+//         Block::bordered()
+//             .title(self.title)
+//             .border_type(BorderType::Rounded)
+//             .border_style(self.style)
+//     }
+// }
 
 impl CommandLineInterface {
     pub fn new() -> Self {
@@ -77,13 +97,15 @@ impl CommandLineInterface {
     pub fn render(&mut self, state: &InterpreterState, mode: Mode) {
         let result = self.term.draw(|frame| {
             let areas = CommandLineInterface::compute_layout(frame.area());
-            let widget = Paragraph::new("text").block(
-                Block::bordered()
-                    .title("Memory")
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::new().fg(Color::Red)),
-            );
-            frame.render_widget(widget, areas.tape);
+
+            CommandLineInterface::render_memory(frame, areas.memory, state.tape(), mode);
+            // let widget = Paragraph::new("text").block(
+            //     Block::bordered()
+            //         .title("Memory")
+            //         .border_type(BorderType::Rounded)
+            //         .border_style(Style::new().fg(Color::Red)),
+            // );
+            // frame.render_widget(widget, areas.tape);
             frame.render_widget(
                 Paragraph::new("editor").block(
                     Block::bordered()
@@ -145,12 +167,71 @@ impl CommandLineInterface {
             .split(main_chunk[1]);
 
         Areas {
-            tape: global[0],
+            memory: global[0],
             editor: left_pannel[0],
             infos: left_pannel[1],
             output: right_pannel[0],
             input: right_pannel[1],
         }
+
+        // Areas {
+        //     tape: Area::new(
+        //         global[0],
+        //         String::from("Memory"),
+        //         Mode::Execution,
+        //         Color::Cyan,
+        //         mode,
+        //     ),
+        //     editor: Area::new(
+        //         left_pannel[0],
+        //         String::from("Editor"),
+        //         Mode::Edition,
+        //         Color::White,
+        //         mode,
+        //     ),
+        //     infos: Area::new(
+        //         left_pannel[1],
+        //         String::from("Commands"),
+        //         Mode::Edition,
+        //         Color::Grey,
+        //         mode,
+        //     ),
+        //     output: Area::new(
+        //         right_pannel[0],
+        //         String::from("Output"),
+        //         Mode::Execution,
+        //         Color::White,
+        //         mode,
+        //     ),
+        //     input: Area::new(
+        //         right_pannel[1],
+        //         String::from("Input"),
+        //         Mode::Execution,
+        //         Color::Red,
+        //         mode,
+        //     ),
+        // }
+    }
+
+    fn render_memory(frame: &mut Frame, area: Rect, tape: &Vec<u8>, mode: Mode) {
+        let content = tape[..frame.area().width.div_ceil(4) as usize]
+            .iter()
+            .map(|v| format!("{:3}", v))
+            .collect::<Vec<String>>()
+            .join(" ");
+        frame.render_widget(
+            Paragraph::new(content).block(
+                Block::bordered()
+                    .title("Memory")
+                    .border_type(BorderType::Rounded)
+                    .border_style(if mode == Mode::Execution {
+                        Style::new().fg(Color::Red)
+                    } else {
+                        Style::new().fg(Color::Gray)
+                    }),
+            ),
+            area,
+        );
     }
 }
 

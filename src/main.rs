@@ -34,6 +34,7 @@ impl ExecOptions {
     }
 }
 
+#[derive(PartialEq)]
 enum Mode {
     Edition,
     Execution,
@@ -95,7 +96,8 @@ fn main() {
     };
     //controller.exec();
 
-    let state = InterpreterState::new(vec![0u8, 100], vec!['+', '+', '+', '>', '-', '0', '<'], 1);
+    let state = InterpreterState::new(vec![0u8; 100], vec!['+', '+', '+', '>', '-', '0', '<'], 1);
+    controller.mode = Mode::Execution;
     controller.view.render(&state, controller.mode);
     thread::sleep(Duration::from_millis(10000));
     println!("{}", controller.model);
