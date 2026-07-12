@@ -1,29 +1,42 @@
 use std::fmt;
 
 pub struct InterpreterState {
-    code: Vec<char>,
+    pub code: Vec<char>,
     // last_action: Option<char>,
-    tape: Vec<u8>,
-    ptr: usize,
+    pub tape: Vec<u8>,
+    pub ptr: usize,
+    pub step: usize,
+    pub output: Vec<u8>,
 }
 
 impl InterpreterState {
-    pub fn new(tape: Vec<u8>, code: Vec<char>, ptr: usize) -> Self {
-        Self { code, tape, ptr }
+    pub fn new(code: Vec<char>, tape_size: usize) -> Self {
+        Self {
+            code,
+            tape: vec![0u8; tape_size],
+            ptr: 0,
+            step: 0,
+            output: vec![],
+        }
     }
 
     pub fn tape(&self) -> &Vec<u8> {
         &self.tape
     }
+
+    pub fn output(&self) -> &Vec<u8> {
+        &self.output
+    }
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Interpreter {
-    pub code: Vec<char>,
+    pub state: InterpreterState,
+    // pub code: Vec<char>,
     pub bracklet_map: Vec<usize>,
-    pub tape: Vec<u8>,
-    pub ptr: usize,
-    pub step: usize,
+    // pub tape: Vec<u8>,
+    // pub ptr: usize,
+    // pub step: usize,
     waiting_for_input: bool,
 }
 
@@ -32,10 +45,10 @@ impl fmt::Display for Interpreter {
         write!(
             f,
             "pointer position : {}\ncurrent step : {}\nBF code : '{}'\ntape [..100] : {:?}",
-            self.ptr,
-            self.step,
-            self.code.iter().collect::<String>(),
-            &(self.tape)[..100],
+            self.state.ptr,
+            self.state.step,
+            self.state.code.iter().collect::<String>(),
+            &(self.state.tape)[..100],
         )
     }
 }
@@ -49,11 +62,8 @@ pub enum Effect {
 impl Interpreter {
     pub fn new(raw_code: String, tape_size: usize) -> Self {
         let mut interp = Self {
-            code: raw_code.chars().collect(),
+            state: InterpreterState::new(raw_code.chars().collect(), tape_size),
             bracklet_map: vec![0usize; raw_code.len()],
-            tape: vec![0u8; tape_size],
-            ptr: 0,
-            step: 0,
             waiting_for_input: false,
         };
         match interp.build_bracklet_map() {
@@ -65,7 +75,7 @@ impl Interpreter {
 
     fn build_bracklet_map(&mut self) -> Result<(), String> {
         let mut stack = Vec::new();
-        for (i, char) in self.code.iter().enumerate() {
+        for (i, char) in self.state.code.iter().enumerate() {
             match char {
                 '[' => stack.push(i),
                 ']' => {
@@ -98,46 +108,51 @@ impl Interpreter {
 
     pub fn exec_current_step(&mut self, entry: Option<u8>) -> Option<Effect> {
         if self.waiting_for_input {
-            self.tape[self.ptr] = entry.unwrap_or(0);
-            println!("Input received : {}", entry.unwrap_or(0));
+            self.state.tape[self.state.ptr] = entry.unwrap_or(0);
+            // println!("Input received : {}", entry.unwrap_or(0));
             self.waiting_for_input = false;
-            self.step += 1;
+            self.state.step += 1;
             return None;
         }
 
-        match self.code[self.step] {
-            '>' => self.ptr += 1,
-            '<' => self.ptr -= 1,
-            '+' => self.tape[self.ptr] = self.tape[self.ptr].wrapping_add(1),
-            '-' => self.tape[self.ptr] = self.tape[self.ptr].wrapping_sub(1),
+        match self.state.code[self.state.step] {
+            '>' => self.state.ptr += 1,
+            '<' => self.state.ptr -= 1,
+            '+' => {
+                self.state.tape[self.state.ptr] = self.state.tape[self.state.ptr].wrapping_add(1)
+            }
+            '-' => {
+                self.state.tape[self.state.ptr] = self.state.tape[self.state.ptr].wrapping_sub(1)
+            }
             '[' => {
-                if self.tape[self.ptr] == 0 {
-                    self.step = self.bracklet_map[self.step];
+                if self.state.tape[self.state.ptr] == 0 {
+                    self.state.step = self.bracklet_map[self.state.step];
                 }
             }
-            ']' => self.step = self.bracklet_map[self.step] - 1,
-            '.' => {
-                self.step += 1;
-                return Some(Effect::Output(self.tape[self.ptr]));
-            }
+            ']' => self.state.step = self.bracklet_map[self.state.step] - 1,
+            '.' => self.state.output.push(self.state.tape[self.state.ptr]),
             ',' => {
                 self.waiting_for_input = true;
                 return Some(Effect::AskInput);
             }
             _ => {
-                self.step += 1;
+                self.state.step += 1;
                 return Some(Effect::Pass);
             }
         };
-        self.step += 1;
+        self.state.step += 1;
         None
     }
 
-    pub fn tape(&self) -> &[u8] {
-        &self.tape
-    }
-    pub fn action(&self) -> char {
-        self.code[self.step - 1]
+    // pub fn tape(&self) -> &[u8] {
+    //     &self.state.tape
+    // }
+    // pub fn action(&self) -> char {
+    //     self.state.code[self.step - 1]
+    // }
+
+    pub fn state(&self) -> &InterpreterState {
+        &self.state
     }
 
     // pub fn state() -> &InterpreterState {

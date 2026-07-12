@@ -10,6 +10,8 @@ use std::{thread, time::Duration};
 
 use crate::{Mode, interpreter::InterpreterState};
 
+const UNACTIVE_COLOR: Color = Color::DarkGray;
+
 pub struct CommandLineInterface {
     term: DefaultTerminal,
 }
@@ -99,6 +101,7 @@ impl CommandLineInterface {
             let areas = CommandLineInterface::compute_layout(frame.area());
 
             CommandLineInterface::render_memory(frame, areas.memory, state.tape(), mode);
+            CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
             // let widget = Paragraph::new("text").block(
             //     Block::bordered()
             //         .title("Memory")
@@ -124,15 +127,15 @@ impl CommandLineInterface {
                 ),
                 areas.infos,
             );
-            frame.render_widget(
-                Paragraph::new("output").block(
-                    Block::bordered()
-                        .title("Output")
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::new().fg(Color::Red)),
-                ),
-                areas.output,
-            );
+            // frame.render_widget(
+            //     Paragraph::new("output").block(
+            //         Block::bordered()
+            //             .title("Output")
+            //             .border_type(BorderType::Rounded)
+            //             .border_style(Style::new().fg(Color::Red)),
+            //     ),
+            //     areas.output,
+            // );
             frame.render_widget(
                 Paragraph::new("input").block(
                     Block::bordered()
@@ -227,7 +230,24 @@ impl CommandLineInterface {
                     .border_style(if mode == Mode::Execution {
                         Style::new().fg(Color::Red)
                     } else {
-                        Style::new().fg(Color::Gray)
+                        Style::new().fg(UNACTIVE_COLOR)
+                    }),
+            ),
+            area,
+        );
+    }
+
+    fn render_output(frame: &mut Frame, area: Rect, output: &Vec<u8>, mode: Mode) {
+        let content: String = output.iter().map(|&v| v as char).collect();
+        frame.render_widget(
+            Paragraph::new(content).block(
+                Block::bordered()
+                    .title("Output")
+                    .border_type(BorderType::Rounded)
+                    .border_style(if mode == Mode::Execution {
+                        Style::new().fg(Color::White)
+                    } else {
+                        Style::new().fg(UNACTIVE_COLOR)
                     }),
             ),
             area,
