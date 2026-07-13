@@ -1,6 +1,7 @@
 #![allow(warnings)]
 
 use std::{
+    f64::consts::E,
     fs,
     io::Read,
     thread,
@@ -26,6 +27,9 @@ struct ExecOptions {
 
 enum FrontendEvent {
     Run,
+    Play,
+    Pause,
+    Stop,
     CharProvided(char),
     CharTyped(char),
     Resized,
@@ -75,6 +79,9 @@ impl Controller {
                     self.model.reset();
                     self.mode = Mode::Execution(ExecutionState::Running);
                 }
+                FrontendEvent::Pause => self.mode = Mode::Execution(ExecutionState::Paused),
+                FrontendEvent::Play => self.mode = Mode::Execution(ExecutionState::Running),
+                FrontendEvent::Stop => self.mode = Mode::Edition,
                 FrontendEvent::CharProvided(c) => {
                     entry = Some(c as u8);
                     self.mode = Mode::Execution(ExecutionState::Running);
@@ -108,7 +115,7 @@ fn main() {
     let raw_code = fs::read_to_string(FILE_PATH).expect("Error reading the file");
     let mut controller = Controller {
         options: ExecOptions {
-            delay_ms: 10,
+            delay_ms: 50,
             tape_size: 100,
         },
         // options: ExecOptions::default(),

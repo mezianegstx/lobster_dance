@@ -28,6 +28,10 @@ impl InterpreterState {
     pub fn output(&self) -> &Vec<u8> {
         &self.output
     }
+
+    pub fn code(&self) -> &Vec<char> {
+        &self.code
+    }
 }
 
 // #[derive(Debug)]

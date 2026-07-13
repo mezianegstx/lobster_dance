@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
+    widgets::{Block, BorderType, Borders, List, ListItem, Padding, Paragraph},
 };
 use std::io::{self, Write, stdout};
 use std::{thread, time::Duration};
@@ -42,27 +42,10 @@ impl CommandLineInterface {
             let areas = CommandLineInterface::compute_layout(frame.area());
 
             CommandLineInterface::render_memory(frame, areas.memory, state.tape(), state.ptr, mode);
+            CommandLineInterface::render_editor(frame, areas.editor, state.code(), mode);
             CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
             CommandLineInterface::render_input(frame, areas.input, self.input_char, mode);
-
-            frame.render_widget(
-                Paragraph::new("editor").block(
-                    Block::bordered()
-                        .title("Editor")
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::new().fg(Color::Red)),
-                ),
-                areas.editor,
-            );
-            frame.render_widget(
-                Paragraph::new("infos").block(
-                    Block::bordered()
-                        .title("Commands")
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::new().fg(Color::Red)),
-                ),
-                areas.infos,
-            );
+            CommandLineInterface::render_commands(frame, areas.infos, "test.bf".to_string(), mode);
         });
     }
 
@@ -137,6 +120,40 @@ impl CommandLineInterface {
         );
     }
 
+    fn render_editor(frame: &mut Frame, area: Rect, code: &Vec<char>, mode: Mode) {
+        let mut content: Vec<Line> = Vec::new();
+        let mut line: Vec<Span> = Vec::new();
+        for (i, &c) in code.iter().enumerate() {
+            line.push(Span::styled(
+                c.to_string(),
+                Style::default().fg(match c {
+                    '[' | ']' => Color::Green,
+                    ',' | '.' => Color::Red,
+                    '+' | '-' => Color::Yellow,
+                    '<' | '>' => Color::Blue,
+                    _ => Color::DarkGray,
+                }),
+            ));
+            if line.len() % (area.width.saturating_sub(2) as usize) == 0 {
+                content.push(Line::from(line.clone()));
+                line.clear()
+            }
+        }
+        frame.render_widget(
+            Paragraph::new(content).block(
+                Block::bordered()
+                    .title("Editor")
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::new().fg(if matches!(mode, Mode::Edition) {
+                        Color::White
+                    } else {
+                        UNACTIVE_COLOR
+                    })),
+            ),
+            area,
+        );
+    }
+
     fn render_output(frame: &mut Frame, area: Rect, output: &Vec<u8>, mode: Mode) {
         let content: String = output.iter().map(|&v| v as char).collect();
         frame.render_widget(
@@ -177,6 +194,20 @@ impl CommandLineInterface {
         );
     }
 
+    fn render_commands(frame: &mut Frame, area: Rect, filename: String, mode: Mode) {
+        let content = if mode == Mode::Edition {
+            format!("FILE: {} | Run: F5, Quit : Esc", filename)
+        } else {
+            format!("FILE: {} | Play/Pause : Space, Stop : Esc", filename)
+        };
+        frame.render_widget(
+            Paragraph::new(content)
+                .block(Block::default().padding(Padding::uniform(1)))
+                .style(Style::default().fg(Color::DarkGray)),
+            area,
+        );
+    }
+
     pub fn poll(&mut self, mode: Mode) -> FrontendEvent {
         if !event::poll(Duration::from_millis(0)).unwrap_or(false) {
             return FrontendEvent::None;
@@ -204,7 +235,12 @@ impl CommandLineInterface {
                 },
 
                 Mode::Execution(_) => match key.code {
-                    KeyCode::Esc => FrontendEvent::Quit,
+                    KeyCode::Esc => FrontendEvent::Stop,
+                    KeyCode::Char(' ') => match mode {
+                        Mode::Execution(ExecutionState::Running) => FrontendEvent::Pause,
+                        Mode::Execution(ExecutionState::Paused) => FrontendEvent::Play,
+                        _ => FrontendEvent::None,
+                    },
                     _ => FrontendEvent::None,
                 },
 
