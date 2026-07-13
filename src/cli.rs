@@ -1,4 +1,4 @@
-use crossterm::{self, event};
+use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -9,12 +9,16 @@ use ratatui::{
 use std::io::{self, Write, stdout};
 use std::{thread, time::Duration};
 
-use crate::{Mode, interpreter::InterpreterState};
+use crate::{
+    ExecutionState, FrontendEvent, Mode,
+    interpreter::{Effect, InterpreterState},
+};
 
 const UNACTIVE_COLOR: Color = Color::DarkGray;
 
 pub struct CommandLineInterface {
     term: DefaultTerminal,
+    input_char: char,
 }
 
 struct Areas {
@@ -25,77 +29,13 @@ struct Areas {
     input: Rect,
 }
 
-// struct Area {
-//     rect: Rect,
-//     title: String,
-//     style: Style,
-// }
-
-// impl Area {
-//     fn new(rect: Rect, title: String, active_mode: Mode, active_color: Color, mode: Mode) -> Self {
-//         Self {
-//             rect,
-//             title,
-//             style: if active_mode == mode {
-//                 Style::new().fg(active_color)
-//             } else {
-//                 Style::new().fg(Color::Gray)
-//             },
-//         }
-//     }
-
-//     fn create_block(&self) -> Block {
-//         Block::bordered()
-//             .title(self.title)
-//             .border_type(BorderType::Rounded)
-//             .border_style(self.style)
-//     }
-// }
-
 impl CommandLineInterface {
     pub fn new() -> Self {
         Self {
             term: ratatui::init(),
+            input_char: '\0',
         }
     }
-    // pub fn print_step_by_step(tape: &[u8], action: char, erase: bool) {
-    //     let mut top_row = String::new();
-    //     let mut content_row = String::new();
-    //     let mut bot_row = String::new();
-    //     for (i, cell) in tape.iter().take(10).enumerate() {
-    //         if i == 0 {
-    //             top_row += "   ┌";
-    //             content_row += &format!(" {} |", action);
-    //             bot_row += "   └";
-    //         }
-    //         if i == 9 {
-    //             top_row += "---┐\n";
-    //             content_row += &format!("{:<3}|\n", cell);
-    //             bot_row += "---┘\n";
-    //         } else {
-    //             top_row += "---┬";
-    //             content_row += &format!("{:<3}|", cell);
-    //             bot_row += "---┴";
-    //         }
-    //     }
-    //     let mut out = stdout();
-    //     execute!(
-    //         out,
-    //         MoveToColumn(0),
-    //         SetForegroundColor(Color::DarkRed),
-    //         Print(top_row),
-    //         Print(content_row),
-    //         Print(bot_row),
-    //         Print("\n"),
-    //         ResetColor,
-    //     )
-    //     .unwrap();
-    //     out.flush().unwrap();
-    //     if erase {
-    //         // println!("erase on");
-    //         execute!(stdout(), MoveUp(4)).unwrap();
-    //     }
-    // }
 
     pub fn render(&mut self, state: &InterpreterState, mode: Mode) {
         let result = self.term.draw(|frame| {
@@ -103,13 +43,8 @@ impl CommandLineInterface {
 
             CommandLineInterface::render_memory(frame, areas.memory, state.tape(), state.ptr, mode);
             CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
-            // let widget = Paragraph::new("text").block(
-            //     Block::bordered()
-            //         .title("Memory")
-            //         .border_type(BorderType::Rounded)
-            //         .border_style(Style::new().fg(Color::Red)),
-            // );
-            // frame.render_widget(widget, areas.tape);
+            CommandLineInterface::render_input(frame, areas.input, self.input_char, mode);
+
             frame.render_widget(
                 Paragraph::new("editor").block(
                     Block::bordered()
@@ -128,141 +63,76 @@ impl CommandLineInterface {
                 ),
                 areas.infos,
             );
-            // frame.render_widget(
-            //     Paragraph::new("output").block(
-            //         Block::bordered()
-            //             .title("Output")
-            //             .border_type(BorderType::Rounded)
-            //             .border_style(Style::new().fg(Color::Red)),
-            //     ),
-            //     areas.output,
-            // );
-            frame.render_widget(
-                Paragraph::new("input").block(
-                    Block::bordered()
-                        .title("Input")
-                        .border_type(BorderType::Rounded)
-                        .border_style(Style::new().fg(Color::Red)),
-                ),
-                areas.input,
-            );
         });
     }
 
     fn compute_layout(area: Rect) -> Areas {
-        let global = Layout::default()
+        let chunk = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(3)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(3),
+                Constraint::Length(3),
+            ])
             .split(area);
 
         let main_chunk = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(global[1]);
+            .split(chunk[1]);
 
-        let left_pannel = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(3), Constraint::Length(4)])
-            .split(main_chunk[0]);
-
-        let right_pannel = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(3), Constraint::Length(3)])
-            .split(main_chunk[1]);
+        let bot_chunk = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(20), Constraint::Length(7)])
+            .split(chunk[2]);
 
         Areas {
-            memory: global[0],
-            editor: left_pannel[0],
-            infos: left_pannel[1],
-            output: right_pannel[0],
-            input: right_pannel[1],
+            memory: chunk[0],
+            editor: main_chunk[0],
+            output: main_chunk[1],
+            infos: bot_chunk[0],
+            input: bot_chunk[1],
         }
-
-        // Areas {
-        //     tape: Area::new(
-        //         global[0],
-        //         String::from("Memory"),
-        //         Mode::Execution,
-        //         Color::Cyan,
-        //         mode,
-        //     ),
-        //     editor: Area::new(
-        //         left_pannel[0],
-        //         String::from("Editor"),
-        //         Mode::Edition,
-        //         Color::White,
-        //         mode,
-        //     ),
-        //     infos: Area::new(
-        //         left_pannel[1],
-        //         String::from("Commands"),
-        //         Mode::Edition,
-        //         Color::Grey,
-        //         mode,
-        //     ),
-        //     output: Area::new(
-        //         right_pannel[0],
-        //         String::from("Output"),
-        //         Mode::Execution,
-        //         Color::White,
-        //         mode,
-        //     ),
-        //     input: Area::new(
-        //         right_pannel[1],
-        //         String::from("Input"),
-        //         Mode::Execution,
-        //         Color::Red,
-        //         mode,
-        //     ),
-        // }
     }
 
     fn render_memory(frame: &mut Frame, area: Rect, tape: &Vec<u8>, ptr: usize, mode: Mode) {
-        let raw_content = tape[..(tape.len() - 1).min(frame.area().width.div_ceil(4) as usize)]
+        let raw_content = tape[..(tape.len() - 1).min(frame.area().width.div_ceil(3) as usize)]
             .iter()
-            .map(|v| format!("{:3}", v))
+            .map(|v| format!("{:02X}", v))
             .collect::<Vec<String>>()
             .join(" ");
-        let content = if ptr < 5 {
+        let content = if matches!(mode, Mode::Execution(_))
+            && ptr < frame.area().width.div_ceil(3) as usize
+        {
             Line::from(vec![
-                Span::raw(&raw_content[..4 * ptr]),
+                Span::raw(&raw_content[..3 * ptr]),
                 Span::styled(
-                    &raw_content[4 * ptr..4 * ptr + 3],
+                    &raw_content[3 * ptr..3 * ptr + 2],
                     Style::default().fg(Color::LightRed),
                 ),
-                Span::raw(&raw_content[4 * ptr + 3..]),
+                Span::raw(&raw_content[3 * ptr + 2..]),
             ])
         } else {
             Line::from(raw_content)
         };
-        // let content_before = tape[..ptr]
-        //     .iter()
-        //     .map(|v| format!("{:3}", v))
-        //     .collect::<Vec<String>>()
-        //     .join(" ")
-        //     + " ";
-        // let content_cursor = tape[ptr..ptr + 1]
-        //     .iter()
-        //     .map(|v| format!("{:3}", v))
-        //     .collect::<Vec<String>>()
-        //     .join(" ");
-        // let content_after = " ".to_string()
-        //     + &tape[ptr + 1..]
-        //         .iter()
-        //         .map(|v| format!("{:3}", v))
-        //         .collect::<Vec<String>>()
-        //         .join(" ");
+
         frame.render_widget(
-            Paragraph::new(content).block(
-                Block::bordered()
-                    .title("Memory")
-                    .border_type(BorderType::Rounded)
-                    .border_style(if mode == Mode::Execution {
-                        Style::new().fg(Color::White)
-                    } else {
-                        Style::new().fg(UNACTIVE_COLOR)
-                    }),
-            ),
+            Paragraph::new(content)
+                .block(
+                    Block::bordered()
+                        .title("Memory")
+                        .border_type(BorderType::Rounded)
+                        .border_style(if matches!(mode, Mode::Execution(_)) {
+                            Style::new().fg(Color::White)
+                        } else {
+                            Style::new().fg(UNACTIVE_COLOR)
+                        }),
+                )
+                .style(Style::default().fg(if matches!(mode, Mode::Execution(_)) {
+                    Color::White
+                } else {
+                    UNACTIVE_COLOR
+                })),
             area,
         );
     }
@@ -270,18 +140,83 @@ impl CommandLineInterface {
     fn render_output(frame: &mut Frame, area: Rect, output: &Vec<u8>, mode: Mode) {
         let content: String = output.iter().map(|&v| v as char).collect();
         frame.render_widget(
-            Paragraph::new(content).block(
+            Paragraph::new(content)
+                .block(
+                    Block::bordered()
+                        .title("Output")
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::new().fg(if matches!(mode, Mode::Execution(_)) {
+                            Color::White
+                        } else {
+                            UNACTIVE_COLOR
+                        })),
+                )
+                .style(Style::default().fg(if matches!(mode, Mode::Execution(_)) {
+                    Color::White
+                } else {
+                    UNACTIVE_COLOR
+                })),
+            area,
+        );
+    }
+
+    fn render_input(frame: &mut Frame, area: Rect, input_char: char, mode: Mode) {
+        let active = mode == Mode::Execution(ExecutionState::AskingInput);
+        frame.render_widget(
+            Paragraph::new(input_char.to_string()).block(
                 Block::bordered()
-                    .title("Output")
+                    .title("Input")
                     .border_type(BorderType::Rounded)
-                    .border_style(if mode == Mode::Execution {
-                        Style::new().fg(Color::White)
+                    .border_style(Style::new().fg(if active {
+                        Color::Red
                     } else {
-                        Style::new().fg(UNACTIVE_COLOR)
-                    }),
+                        UNACTIVE_COLOR
+                    })),
             ),
             area,
         );
+    }
+
+    pub fn poll(&mut self, mode: Mode) -> FrontendEvent {
+        if !event::poll(Duration::from_millis(0)).unwrap_or(false) {
+            return FrontendEvent::None;
+        }
+
+        let event = match event::read() {
+            Ok(e) => e,
+            Err(_) => return FrontendEvent::None,
+        };
+
+        match event {
+            Event::Resize(_, _) => FrontendEvent::Resized,
+            Event::Key(key) => match mode {
+                Mode::Execution(ExecutionState::AskingInput) => match key.code {
+                    KeyCode::Char(c) => {
+                        self.input_char = c;
+                        FrontendEvent::None
+                    }
+                    KeyCode::Enter => {
+                        let c = self.input_char;
+                        self.input_char = '\0';
+                        FrontendEvent::CharProvided(c)
+                    }
+                    _ => FrontendEvent::None,
+                },
+
+                Mode::Execution(_) => match key.code {
+                    KeyCode::Esc => FrontendEvent::Quit,
+                    _ => FrontendEvent::None,
+                },
+
+                Mode::Edition => match key.code {
+                    KeyCode::Esc => FrontendEvent::Quit,
+                    KeyCode::F(5) => FrontendEvent::Run,
+                    KeyCode::Char(c) => FrontendEvent::CharTyped(c),
+                    _ => FrontendEvent::None,
+                },
+            },
+            _ => FrontendEvent::None,
+        }
     }
 }
 

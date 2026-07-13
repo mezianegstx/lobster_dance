@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(Clone)]
 pub struct InterpreterState {
     pub code: Vec<char>,
     // last_action: Option<char>,
@@ -54,9 +55,9 @@ impl fmt::Display for Interpreter {
 }
 
 pub enum Effect {
-    Output(u8),
     AskInput,
     Pass,
+    End,
 }
 
 impl Interpreter {
@@ -71,6 +72,11 @@ impl Interpreter {
             Err(e) => println!("{}", e),
         };
         interp
+    }
+
+    pub fn reset(&mut self) {
+        self.state = InterpreterState::new(self.state.code.clone(), self.state.tape.len());
+        self.build_bracklet_map();
     }
 
     fn build_bracklet_map(&mut self) -> Result<(), String> {
@@ -107,6 +113,9 @@ impl Interpreter {
     }
 
     pub fn exec_current_step(&mut self, entry: Option<u8>) -> Option<Effect> {
+        if self.state.step == self.state.code.len() {
+            return Some(Effect::End);
+        }
         if self.waiting_for_input {
             self.state.tape[self.state.ptr] = entry.unwrap_or(0);
             // println!("Input received : {}", entry.unwrap_or(0));
@@ -144,27 +153,7 @@ impl Interpreter {
         None
     }
 
-    // pub fn tape(&self) -> &[u8] {
-    //     &self.state.tape
-    // }
-    // pub fn action(&self) -> char {
-    //     self.state.code[self.step - 1]
-    // }
-
     pub fn state(&self) -> &InterpreterState {
         &self.state
     }
-
-    // pub fn state() -> &InterpreterState {
-    //     // InterpreterState {
-    //     //     code: self.code.clone(),
-    //     //     tape: self.tape.clone(),
-    //     //     ptr: self.ptr,
-    //     // }
-    //     &InterpreterState {
-    //         code: vec!['+', '+', '+', '>', '-', '0', '<'],
-    //         tape: vec![0u8, 100],
-    //         ptr: 1,
-    //     }
-    // }
 }
