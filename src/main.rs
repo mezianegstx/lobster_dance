@@ -14,11 +14,11 @@ use crate::interpreter::InterpreterState;
 use interpreter::Interpreter;
 
 mod cli;
-use cli::CommandLineInterface;
+use cli::{CodeVisualisation, CommandLineInterface};
 
 use crate::interpreter::Effect;
 
-const FILE_PATH: &str = "./bf_files/HelloWord.bf";
+const FILE_PATH: &str = "./bf_files/test.bf";
 const DEFAULT_TAPE_SIZE: usize = 30_000;
 
 struct ExecOptions {
@@ -116,6 +116,12 @@ impl Controller {
 
 fn main() {
     let raw_code = fs::read_to_string(FILE_PATH).expect("Error reading the file");
+    // let model = Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE);
+    // for line in &CodeVisualisation::indent(model.state().code()) {
+    //     let s: String = line.iter().collect();
+    //     println!("{s}");
+    // }
+    // thread::sleep(Duration::from_millis(100000));
     let mut controller = Controller {
         options: ExecOptions {
             delay_ms: 50,

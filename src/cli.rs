@@ -22,6 +22,8 @@ pub struct CommandLineInterface {
     term: DefaultTerminal,
     input_char: char,
     cursor_pos: usize,
+    cv: CodeVisualisation,
+    displated_code_pos: (usize, usize),
 }
 
 impl CommandLineInterface {
@@ -38,6 +40,141 @@ struct Areas {
     input: Rect,
 }
 
+struct Cursor {}
+
+impl Cursor {
+    // fn display_pos(&self, lines: Vec<Vec<cahr>>, offset: usize) -> (usize, usize) {}
+}
+
+pub struct CodeVisualisation {
+    lines: Vec<Vec<char>>,
+}
+
+impl CodeVisualisation {
+    fn new() -> Self {
+        Self { lines: Vec::new() }
+    }
+    pub fn indent(&mut self, code: &Vec<char>) -> &Vec<Vec<char>> {
+        self.lines = Vec::new();
+        let mut dept: usize = 0;
+        let mut line: Vec<char> = Vec::new();
+        for &c in code {
+            if c == '[' {
+                dept += 1;
+                line.push(c);
+                line.push(' ');
+                self.lines.push(line);
+                line = vec![' '; 2 * dept];
+            } else if c == '\n' {
+                line.push(' ');
+                self.lines.push(line);
+                line = vec![' '; 2 * dept];
+            } else if c == ']' {
+                line.push(' ');
+                self.lines.push(line);
+                dept -= 1;
+                line = vec![' '; 2 * dept];
+                line.push(c);
+                line.push(' ');
+                self.lines.push(line);
+                line = vec![' '; 2 * dept];
+            } else {
+                line.push(c);
+            }
+        }
+        &self.lines
+    }
+
+    pub fn render(
+        &mut self,
+        width: usize,
+        height: usize,
+        cursor_offest: usize,
+        displayed_code_pos: &mut (usize, usize),
+    ) -> (Vec<Line>, (usize, usize)) {
+        let mut content: Vec<Line> = Vec::new();
+        let (cy, cx) = self.cursor_loc(cursor_offest);
+        *displayed_code_pos = (
+            displayed_code_pos
+                .0
+                .min(cx)
+                .max(cx.saturating_sub(width - 1)),
+            displayed_code_pos
+                .1
+                .min(cy)
+                .max(cy.saturating_sub(height - 1)),
+        );
+        for (i, line) in self.lines[displayed_code_pos.1
+            ..(displayed_code_pos.1.min(self.lines.len()) + height).min(self.lines.len())]
+            .iter()
+            .enumerate()
+        {
+            content.push(CodeVisualisation::render_line(
+                Vec::from(
+                    &line[displayed_code_pos.0.min(line.len())
+                        ..(displayed_code_pos.0 + width).min(line.len())],
+                ),
+                // if cy == i { Some(cx) } else { None },
+            ))
+        }
+        (content, (cx, cy))
+    }
+
+    fn cursor_loc(&self, mut cursor_offest: usize) -> (usize, usize) {
+        for (i, line) in self.lines.iter().enumerate() {
+            if line.len() > cursor_offest {
+                return (i, cursor_offest);
+            }
+            cursor_offest -= line.len();
+        }
+        (0, 0)
+    }
+
+    fn render_line(raw_line: Vec<char>) -> Line<'static> {
+        // , cursor_pos: Option<usize>
+        let mut line: Vec<Span> = Vec::new();
+        for (i, &c) in raw_line.iter().enumerate() {
+            line.push(Span::styled(
+                c.to_string(),
+                Style::default().fg(match c {
+                    '[' | ']' => Color::Green,
+                    ',' | '.' => Color::Red,
+                    '+' | '-' => Color::Yellow,
+                    '<' | '>' => Color::Blue,
+                    _ => Color::DarkGray,
+                }), // .bg(
+                    //     if let Some(pos) = cursor_pos
+                    //         && i == pos
+                    //     {
+                    //         Color::Red
+                    //     } else {
+                    //         Color::Reset
+                    //     },
+                    // ),
+            ));
+        }
+        Line::from(line)
+    }
+
+    pub fn cursor_down(&self, cursor_offest: usize) -> usize {
+        let (cy, cx) = self.cursor_loc(cursor_offest);
+        if cy + 2 > self.lines.len() {
+            cursor_offest
+        } else {
+            cursor_offest - cx + self.lines[cy].len() + cx.min(self.lines[cy + 1].len() - 1)
+        }
+    }
+
+    pub fn cursor_up(&self, cursor_offest: usize) -> usize {
+        let (cy, cx) = self.cursor_loc(cursor_offest);
+        if cy < 1 {
+            cursor_offest
+        } else {
+            cursor_offest + cx.min(self.lines[cy - 1].len() - 1) - cx - self.lines[cy - 1].len()
+        }
+    }
+}
+
 impl CommandLineInterface {
     pub fn new() -> Self {
         execute!(stdout(), SetCursorStyle::BlinkingBlock).ok();
@@ -45,13 +182,14 @@ impl CommandLineInterface {
             term: ratatui::init(),
             input_char: '\0',
             cursor_pos: 0,
+            cv: CodeVisualisation::new(),
+            displated_code_pos: (0, 0),
         }
     }
 
     pub fn render(&mut self, state: &InterpreterState, mode: Mode) {
         let result = self.term.draw(|frame| {
             let areas = CommandLineInterface::compute_layout(frame.area());
-
             CommandLineInterface::render_memory(frame, areas.memory, state.tape(), state.ptr, mode);
             CommandLineInterface::render_editor(
                 frame,
@@ -59,11 +197,20 @@ impl CommandLineInterface {
                 state.code(),
                 state.step,
                 self.cursor_pos,
+                &mut self.cv,
+                &mut self.displated_code_pos,
                 mode,
             );
             CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
             CommandLineInterface::render_input(frame, areas.input, self.input_char, mode);
-            CommandLineInterface::render_commands(frame, areas.infos, "test.bf".to_string(), mode);
+            CommandLineInterface::render_commands(
+                frame,
+                areas.infos,
+                "test.bf".to_string(),
+                mode,
+                &self.cv.cursor_loc(self.cursor_pos),
+                self.cursor_pos,
+            );
         });
     }
 
@@ -143,34 +290,18 @@ impl CommandLineInterface {
         area: Rect,
         code: &Vec<char>,
         step: usize,
-        cursor_pos: usize,
+        cursor_offest: usize,
+        cv: &mut CodeVisualisation,
+        displayed_code_pos: &mut (usize, usize),
         mode: Mode,
     ) {
-        let mut content: Vec<Line> = Vec::new();
-        let mut line: Vec<Span> = Vec::new();
-        for (i, &c) in code.iter().enumerate() {
-            line.push(Span::styled(
-                c.to_string(),
-                Style::default()
-                    .fg(match c {
-                        '[' | ']' => Color::Green,
-                        ',' | '.' => Color::Red,
-                        '+' | '-' => Color::Yellow,
-                        '<' | '>' => Color::Blue,
-                        _ => Color::DarkGray,
-                    })
-                    .bg(if matches!(mode, Mode::Execution(_)) && i == step {
-                        Color::Red
-                    } else {
-                        Color::Reset
-                    }),
-            ));
-            if line.len() % (area.width.saturating_sub(2) as usize) == 0 {
-                content.push(Line::from(line.clone()));
-                line.clear()
-            }
-        }
-        content.push(Line::from(line));
+        cv.indent(code);
+        let (content, (cx, cy)) = cv.render(
+            area.width.saturating_sub(2) as usize,
+            area.height.saturating_sub(2) as usize,
+            cursor_offest,
+            displayed_code_pos,
+        );
         frame.render_widget(
             Paragraph::new(content).block(
                 Block::bordered()
@@ -186,8 +317,8 @@ impl CommandLineInterface {
         );
         if mode == Mode::Edition {
             frame.set_cursor_position((
-                area.x + 1 + (cursor_pos as u16) % area.width.saturating_sub(2),
-                area.y + 1 + (cursor_pos as u16) / area.width.saturating_sub(2),
+                (area.x + 1 + (cx - displayed_code_pos.0) as u16).min(area.width - 2), // area.x + 1 + (cursor_offest as u16) % area.width.saturating_sub(2),
+                (area.y + 1 + (cy - displayed_code_pos.1) as u16).min(area.height + 1), // area.y + 1 + (cursor_offest as u16) / area.width.saturating_sub(2),
             ));
         }
     }
@@ -243,9 +374,19 @@ impl CommandLineInterface {
         }
     }
 
-    fn render_commands(frame: &mut Frame, area: Rect, filename: String, mode: Mode) {
+    fn render_commands(
+        frame: &mut Frame,
+        area: Rect,
+        filename: String,
+        mode: Mode,
+        dcp: &(usize, usize),
+        offest: usize,
+    ) {
         let content = if mode == Mode::Edition {
-            format!("FILE: {} | Run: F5, Quit : Esc", filename)
+            format!(
+                "FILE: {} | Run: F5, Quit : Esc | {:?} | {}",
+                filename, dcp, offest
+            )
         } else {
             format!("FILE: {} | Play/Pause : Space, Stop : Esc", filename)
         };
@@ -262,7 +403,7 @@ impl CommandLineInterface {
     }
 
     fn cursor_left(&mut self) {
-        self.cursor_pos = (self.cursor_pos - 1).max(0);
+        self.cursor_pos = self.cursor_pos.saturating_sub(1);
     }
 
     pub fn poll(&mut self, state: &InterpreterState, mode: Mode) -> FrontendEvent {
@@ -317,6 +458,8 @@ impl CommandLineInterface {
                     KeyCode::Right => {
                         self.cursor_right(state.code());
                     }
+                    KeyCode::Down => self.cursor_pos = self.cv.cursor_down(self.cursor_pos),
+                    KeyCode::Up => self.cursor_pos = self.cv.cursor_up(self.cursor_pos),
                     KeyCode::Backspace => {
                         if self.cursor_pos > 0 {
                             fevent = FrontendEvent::CharErased(self.cursor_pos - 1);
