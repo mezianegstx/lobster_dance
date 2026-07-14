@@ -83,6 +83,14 @@ impl Interpreter {
         self.build_bracklet_map();
     }
 
+    pub fn code_insert(&mut self, pos: usize, c: char) {
+        self.state.code.insert(pos, c);
+    }
+
+    pub fn code_del(&mut self, pos: usize) {
+        self.state.code.remove(pos);
+    }
+
     fn build_bracklet_map(&mut self) -> Result<(), String> {
         let mut stack = Vec::new();
         for (i, char) in self.state.code.iter().enumerate() {

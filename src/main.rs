@@ -2,6 +2,7 @@
 
 use std::{
     f64::consts::E,
+    fmt::Formatter,
     fs,
     io::Read,
     thread,
@@ -31,7 +32,8 @@ enum FrontendEvent {
     Pause,
     Stop,
     CharProvided(char),
-    CharTyped(char),
+    CharTyped(usize, char),
+    CharErased(usize),
     Resized,
     Quit,
     None,
@@ -69,12 +71,12 @@ struct Controller {
 impl Controller {
     fn exec(&mut self) {
         let mut entry: Option<u8> = None;
-        let state = self.model.state();
+        let mut state = self.model.state();
         let mut last_step = Instant::now();
         loop {
             self.view.render(self.model.state(), self.mode);
 
-            match self.view.poll(self.mode) {
+            match self.view.poll(self.model.state(), self.mode) {
                 FrontendEvent::Run => {
                     self.model.reset();
                     self.mode = Mode::Execution(ExecutionState::Running);
@@ -86,7 +88,8 @@ impl Controller {
                     entry = Some(c as u8);
                     self.mode = Mode::Execution(ExecutionState::Running);
                 }
-                FrontendEvent::CharTyped(c) => {}
+                FrontendEvent::CharTyped(pos, c) => self.model.code_insert(pos, c),
+                FrontendEvent::CharErased(pos) => self.model.code_del(pos),
                 FrontendEvent::Resized => {}
                 FrontendEvent::None => {}
                 FrontendEvent::Quit => break,
@@ -125,5 +128,5 @@ fn main() {
     };
 
     controller.exec();
-    thread::sleep(Duration::from_millis(1000));
+    // thread::sleep(Duration::from_millis(1000));
 }

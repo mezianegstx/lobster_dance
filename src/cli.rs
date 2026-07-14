@@ -1,4 +1,6 @@
 use crossterm::event::{self, Event, KeyCode};
+use crossterm::{cursor::SetCursorStyle, execute};
+
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -19,6 +21,13 @@ const UNACTIVE_COLOR: Color = Color::DarkGray;
 pub struct CommandLineInterface {
     term: DefaultTerminal,
     input_char: char,
+    cursor_pos: usize,
+}
+
+impl CommandLineInterface {
+    pub fn cursor_pos(&self) -> usize {
+        self.cursor_pos
+    }
 }
 
 struct Areas {
@@ -31,9 +40,11 @@ struct Areas {
 
 impl CommandLineInterface {
     pub fn new() -> Self {
+        execute!(stdout(), SetCursorStyle::BlinkingBlock).ok();
         Self {
             term: ratatui::init(),
             input_char: '\0',
+            cursor_pos: 0,
         }
     }
 
@@ -42,7 +53,14 @@ impl CommandLineInterface {
             let areas = CommandLineInterface::compute_layout(frame.area());
 
             CommandLineInterface::render_memory(frame, areas.memory, state.tape(), state.ptr, mode);
-            CommandLineInterface::render_editor(frame, areas.editor, state.code(), mode);
+            CommandLineInterface::render_editor(
+                frame,
+                areas.editor,
+                state.code(),
+                state.step,
+                self.cursor_pos,
+                mode,
+            );
             CommandLineInterface::render_output(frame, areas.output, state.output(), mode);
             CommandLineInterface::render_input(frame, areas.input, self.input_char, mode);
             CommandLineInterface::render_commands(frame, areas.infos, "test.bf".to_string(), mode);
@@ -66,7 +84,7 @@ impl CommandLineInterface {
 
         let bot_chunk = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(20), Constraint::Length(7)])
+            .constraints([Constraint::Min(20), Constraint::Length(20)])
             .split(chunk[2]);
 
         Areas {
@@ -120,25 +138,39 @@ impl CommandLineInterface {
         );
     }
 
-    fn render_editor(frame: &mut Frame, area: Rect, code: &Vec<char>, mode: Mode) {
+    fn render_editor(
+        frame: &mut Frame,
+        area: Rect,
+        code: &Vec<char>,
+        step: usize,
+        cursor_pos: usize,
+        mode: Mode,
+    ) {
         let mut content: Vec<Line> = Vec::new();
         let mut line: Vec<Span> = Vec::new();
         for (i, &c) in code.iter().enumerate() {
             line.push(Span::styled(
                 c.to_string(),
-                Style::default().fg(match c {
-                    '[' | ']' => Color::Green,
-                    ',' | '.' => Color::Red,
-                    '+' | '-' => Color::Yellow,
-                    '<' | '>' => Color::Blue,
-                    _ => Color::DarkGray,
-                }),
+                Style::default()
+                    .fg(match c {
+                        '[' | ']' => Color::Green,
+                        ',' | '.' => Color::Red,
+                        '+' | '-' => Color::Yellow,
+                        '<' | '>' => Color::Blue,
+                        _ => Color::DarkGray,
+                    })
+                    .bg(if matches!(mode, Mode::Execution(_)) && i == step {
+                        Color::Red
+                    } else {
+                        Color::Reset
+                    }),
             ));
             if line.len() % (area.width.saturating_sub(2) as usize) == 0 {
                 content.push(Line::from(line.clone()));
                 line.clear()
             }
         }
+        content.push(Line::from(line));
         frame.render_widget(
             Paragraph::new(content).block(
                 Block::bordered()
@@ -152,6 +184,12 @@ impl CommandLineInterface {
             ),
             area,
         );
+        if mode == Mode::Edition {
+            frame.set_cursor_position((
+                area.x + 1 + (cursor_pos as u16) % area.width.saturating_sub(2),
+                area.y + 1 + (cursor_pos as u16) / area.width.saturating_sub(2),
+            ));
+        }
     }
 
     fn render_output(frame: &mut Frame, area: Rect, output: &Vec<u8>, mode: Mode) {
@@ -180,7 +218,12 @@ impl CommandLineInterface {
     fn render_input(frame: &mut Frame, area: Rect, input_char: char, mode: Mode) {
         let active = mode == Mode::Execution(ExecutionState::AskingInput);
         frame.render_widget(
-            Paragraph::new(input_char.to_string()).block(
+            Paragraph::new(if active && input_char == '\0' {
+                Span::styled("Waiting for input", Style::default().fg(UNACTIVE_COLOR))
+            } else {
+                Span::from(input_char.to_string())
+            })
+            .block(
                 Block::bordered()
                     .title("Input")
                     .border_type(BorderType::Rounded)
@@ -192,6 +235,12 @@ impl CommandLineInterface {
             ),
             area,
         );
+        if active {
+            frame.set_cursor_position((
+                area.x + if input_char == '\0' { 1 } else { 2 }, // colonne absolue
+                area.y + 1,                                      // ligne absolue
+            ));
+        }
     }
 
     fn render_commands(frame: &mut Frame, area: Rect, filename: String, mode: Mode) {
@@ -208,7 +257,15 @@ impl CommandLineInterface {
         );
     }
 
-    pub fn poll(&mut self, mode: Mode) -> FrontendEvent {
+    fn cursor_right(&mut self, code: &Vec<char>) {
+        self.cursor_pos = (self.cursor_pos + 1).min(code.len() - 1);
+    }
+
+    fn cursor_left(&mut self) {
+        self.cursor_pos = (self.cursor_pos - 1).max(0);
+    }
+
+    pub fn poll(&mut self, state: &InterpreterState, mode: Mode) -> FrontendEvent {
         if !event::poll(Duration::from_millis(0)).unwrap_or(false) {
             return FrontendEvent::None;
         }
@@ -218,46 +275,68 @@ impl CommandLineInterface {
             Err(_) => return FrontendEvent::None,
         };
 
+        let mut fevent = FrontendEvent::None;
         match event {
-            Event::Resize(_, _) => FrontendEvent::Resized,
+            Event::Resize(_, _) => return FrontendEvent::Resized,
             Event::Key(key) => match mode {
                 Mode::Execution(ExecutionState::AskingInput) => match key.code {
                     KeyCode::Char(c) => {
                         self.input_char = c;
-                        FrontendEvent::None
                     }
                     KeyCode::Enter => {
-                        let c = self.input_char;
+                        fevent = FrontendEvent::CharProvided(self.input_char);
                         self.input_char = '\0';
-                        FrontendEvent::CharProvided(c)
                     }
-                    _ => FrontendEvent::None,
+                    KeyCode::Backspace => {
+                        self.input_char = '\0';
+                    }
+                    KeyCode::Esc => return FrontendEvent::Stop,
+                    _ => {}
                 },
 
                 Mode::Execution(_) => match key.code {
-                    KeyCode::Esc => FrontendEvent::Stop,
+                    KeyCode::Esc => return FrontendEvent::Stop,
                     KeyCode::Char(' ') => match mode {
-                        Mode::Execution(ExecutionState::Running) => FrontendEvent::Pause,
-                        Mode::Execution(ExecutionState::Paused) => FrontendEvent::Play,
-                        _ => FrontendEvent::None,
+                        Mode::Execution(ExecutionState::Running) => return FrontendEvent::Pause,
+                        Mode::Execution(ExecutionState::Paused) => return FrontendEvent::Play,
+                        _ => {}
                     },
-                    _ => FrontendEvent::None,
+                    _ => {}
                 },
 
                 Mode::Edition => match key.code {
-                    KeyCode::Esc => FrontendEvent::Quit,
-                    KeyCode::F(5) => FrontendEvent::Run,
-                    KeyCode::Char(c) => FrontendEvent::CharTyped(c),
-                    _ => FrontendEvent::None,
+                    KeyCode::Esc => return FrontendEvent::Quit,
+                    KeyCode::F(5) => return FrontendEvent::Run,
+                    KeyCode::Char(c) => {
+                        fevent = FrontendEvent::CharTyped(self.cursor_pos, c);
+                        self.cursor_pos += 1;
+                    }
+                    KeyCode::Left => {
+                        self.cursor_left();
+                    }
+                    KeyCode::Right => {
+                        self.cursor_right(state.code());
+                    }
+                    KeyCode::Backspace => {
+                        if self.cursor_pos > 0 {
+                            fevent = FrontendEvent::CharErased(self.cursor_pos - 1);
+                            self.cursor_left();
+                        } else {
+                        }
+                    }
+                    KeyCode::Delete => return FrontendEvent::CharErased(self.cursor_pos),
+                    _ => {}
                 },
             },
-            _ => FrontendEvent::None,
-        }
+            _ => {}
+        };
+        fevent
     }
 }
 
 impl Drop for CommandLineInterface {
     fn drop(&mut self) {
+        execute!(stdout(), SetCursorStyle::DefaultUserShape).ok();
         ratatui::restore();
     }
 }
