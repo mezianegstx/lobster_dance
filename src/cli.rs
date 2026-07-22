@@ -21,14 +21,14 @@ const UNACTIVE_COLOR: Color = Color::DarkGray;
 pub struct CommandLineInterface {
     term: DefaultTerminal,
     input_char: char,
-    cursor_pos: usize,
+    cursor_offset: usize,
     cv: CodeVisualisation,
     displated_code_pos: (usize, usize),
 }
 
 impl CommandLineInterface {
     pub fn cursor_pos(&self) -> usize {
-        self.cursor_pos
+        self.cursor_offset
     }
 }
 
@@ -181,7 +181,7 @@ impl CommandLineInterface {
         Self {
             term: ratatui::init(),
             input_char: '\0',
-            cursor_pos: 0,
+            cursor_offset: 0,
             cv: CodeVisualisation::new(),
             displated_code_pos: (0, 0),
         }
@@ -196,7 +196,7 @@ impl CommandLineInterface {
                 areas.editor,
                 state.code(),
                 state.step,
-                self.cursor_pos,
+                self.cursor_offset,
                 &mut self.cv,
                 &mut self.displated_code_pos,
                 mode,
@@ -208,8 +208,8 @@ impl CommandLineInterface {
                 areas.infos,
                 "test.bf".to_string(),
                 mode,
-                &self.cv.cursor_loc(self.cursor_pos),
-                self.cursor_pos,
+                &self.cv.cursor_loc(self.cursor_offset),
+                self.cursor_offset,
             );
         });
     }
@@ -399,11 +399,11 @@ impl CommandLineInterface {
     }
 
     fn cursor_right(&mut self, code: &Vec<char>) {
-        self.cursor_pos = (self.cursor_pos + 1).min(code.len() - 1);
+        self.cursor_offset = (self.cursor_offset + 1).min(code.len() - 1);
     }
 
     fn cursor_left(&mut self) {
-        self.cursor_pos = self.cursor_pos.saturating_sub(1);
+        self.cursor_offset = self.cursor_offset.saturating_sub(1);
     }
 
     pub fn poll(&mut self, state: &InterpreterState, mode: Mode) -> FrontendEvent {
@@ -449,8 +449,8 @@ impl CommandLineInterface {
                     KeyCode::Esc => return FrontendEvent::Quit,
                     KeyCode::F(5) => return FrontendEvent::Run,
                     KeyCode::Char(c) => {
-                        fevent = FrontendEvent::CharTyped(self.cursor_pos, c);
-                        self.cursor_pos += 1;
+                        fevent = FrontendEvent::CharTyped(self.cursor_offset, c);
+                        self.cursor_offset += 1;
                     }
                     KeyCode::Left => {
                         self.cursor_left();
@@ -458,16 +458,16 @@ impl CommandLineInterface {
                     KeyCode::Right => {
                         self.cursor_right(state.code());
                     }
-                    KeyCode::Down => self.cursor_pos = self.cv.cursor_down(self.cursor_pos),
-                    KeyCode::Up => self.cursor_pos = self.cv.cursor_up(self.cursor_pos),
+                    KeyCode::Down => self.cursor_offset = self.cv.cursor_down(self.cursor_offset),
+                    KeyCode::Up => self.cursor_offset = self.cv.cursor_up(self.cursor_offset),
                     KeyCode::Backspace => {
-                        if self.cursor_pos > 0 {
-                            fevent = FrontendEvent::CharErased(self.cursor_pos - 1);
+                        if self.cursor_offset > 0 {
+                            fevent = FrontendEvent::CharErased(self.cursor_offset - 1);
                             self.cursor_left();
                         } else {
                         }
                     }
-                    KeyCode::Delete => return FrontendEvent::CharErased(self.cursor_pos),
+                    KeyCode::Delete => return FrontendEvent::CharErased(self.cursor_offset),
                     _ => {}
                 },
             },

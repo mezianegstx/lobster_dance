@@ -10,8 +10,8 @@ use std::{
 };
 
 mod interpreter;
-use crate::interpreter::InterpreterState;
-use interpreter::Interpreter;
+use crate::interpreter::{Code, Interpreter, InterpreterState};
+// use interpreter::Interpreter;
 
 mod cli;
 use cli::{CodeVisualisation, CommandLineInterface};
