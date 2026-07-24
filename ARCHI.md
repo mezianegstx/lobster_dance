@@ -1,4 +1,41 @@
 ```mermaid
+stateDiagram-v2
+    [*] --> Edition
+
+    Edition --> Execution : F5
+
+    state Execution {
+        [*] --> Running
+        Running --> Paused : Space
+        Paused --> Running : Space
+
+        Running --> AskingInput
+        AskingInput --> Running : Enter
+    }
+
+    Execution --> Edition : Esc
+    Edition --> QUIT : Esc
+```
+
+```mermaid
+classDiagram
+    class MaStruct {
+        <<struct>>
+        -champ_a: i32
+        -champ_b: String
+        +new() MaStruct
+    }
+
+    class MonEnum {
+        <<enumeration>>
+        VarianteA
+        VarianteB
+        VarianteC
+    }
+
+
+```
+```mermaid
 classDiagram
     class Model {
         -state
