@@ -3,84 +3,248 @@ use std::fmt;
 use crossterm::cursor;
 
 pub struct Code {
-    lines: Vec<Vec<char>>,
+    code: Vec<char>,
 }
 
 impl Code {
     fn new() -> Self {
-        Self { lines: Vec::new() }
+        Self { code: Vec::new() }
     }
 
-    fn from(raw_code: Vec<char>) -> Self {
-        let mut s = Self::new();
-        s.indent(&raw_code);
-        s
+    pub fn from_string(raw_code: String) -> Self {
+        let mut c = Self {
+            code: raw_code.chars().collect(),
+        };
+        c.indent();
+        c
+        // let mut s = Self::new();
+        // let mut dept: usize = 0;
+        // let mut line: Vec<char> = Vec::new();
+        // for c in raw_code.trim().chars() {
+        //     if c == '[' {
+        //         dept += 1;
+        //         line.push(c);
+        //         line.push(' ');
+        //         s.lines.push(line);
+        //         line = vec![' '; 2 * dept];
+        //     } else if c == '\n' {
+        //         line.push(' ');
+        //         s.lines.push(line);
+        //         line = vec![' '; 2 * dept];
+        //     } else if c == ']' {
+        //         line.push(' ');
+        //         s.lines.push(line);
+        //         dept -= 1;
+        //         line = vec![' '; 2 * dept];
+        //         line.push(c);
+        //         line.push(' ');
+        //         s.lines.push(line);
+        //         line = vec![' '; 2 * dept];
+        //     } else {
+        //         line.push(c);
+        //     }
+        // }
+        // s
     }
 
-    pub fn indent(&mut self, code: &Vec<char>) {
-        self.lines = Vec::new();
-        let mut dept: usize = 0;
-        let mut line: Vec<char> = Vec::new();
-        for &c in code {
+    // fn build_bracklet_map(&mut self) -> Result<(), String> {
+    //     let mut stack = Vec::new();
+    //     for (i, char) in self.code.code().iter().enumerate() {
+    //         match char {
+    //             '[' => stack.push(i),
+    //             ']' => {
+    //                 let origin = match stack.pop() {
+    //                     Some(indice) => indice,
+    //                     None => {
+    //                         return Err(format!(
+    //                             "Closed bracklet at position {} without corresponding '['.",
+    //                             i
+    //                         ));
+    //                     }
+    //                 };
+    //                 self.bracklet_map[i] = origin;
+    //                 self.bracklet_map[origin] = i;
+    //             }
+    //             _ => {}
+    //         }
+    //     }
+    //     match stack.pop() {
+    //         Some(indice) => {
+    //             return Err(format!(
+    //                 "Opening bracklet found at position {} was never closed.",
+    //                 indice
+    //             ));
+    //         }
+    //         None => {}
+    //     }
+    //     Ok(())
+    // }
+
+    fn clean(&mut self) {
+        //let old_code = self.state.code.clone();
+        let mut space = false;
+        let mut enter = false;
+        //let mut offset: usize = 0;
+        // for line in &mut self.code {
+        self.code.retain(|&c|
+        // for (i, c) in &mut line.iter_mut().enumerate() {
+            match c {
+                ' ' => {
+                    if space {
+                        // line.remove(i);
+                        // offset += 1;
+                        false
+                    } else {
+                        space = true;
+                        true
+                    }
+                }
+                '\n' => {
+                    if enter {
+                        // line.remove(i);
+                        // offset += 1;
+                        false
+                    } else {
+                        enter = true;
+                        true
+                    }
+                }
+                _ => {
+                    space = false;
+                    enter = false;
+                    true
+                } // if i==cursor_pos {
+                    //     cursor_pos +=
+                    //     }
+            }) //}
+        // }
+        // cursor_pos
+    }
+
+    pub fn indent(&mut self) {
+        self.clean();
+        let mut old_code = self.code.clone();
+        self.code = Vec::new();
+        let mut dept = 0;
+        for c in old_code {
             if c == '[' {
                 dept += 1;
-                line.push(c);
-                line.push(' ');
-                self.lines.push(line);
-                line = vec![' '; 2 * dept];
+                self.code.extend(vec![c, '\n']);
+                // self.code.push(' ');
+                // self.code.push('\n');
+                self.code.extend(vec![' '; 2 * dept]);
             } else if c == '\n' {
-                line.push(' ');
-                self.lines.push(line);
-                line = vec![' '; 2 * dept];
+                self.code.extend(vec!['\n']);
+                self.code.extend(vec![' '; 2 * dept]);
             } else if c == ']' {
-                line.push(' ');
-                self.lines.push(line);
+                self.code.extend(vec!['\n']);
                 dept -= 1;
-                line = vec![' '; 2 * dept];
-                line.push(c);
+                self.code.extend(vec![' '; 2 * dept]);
+                self.code.extend(vec![c, '\n']);
+                self.code.extend(vec![' '; 2 * dept]);
+            } else {
+                self.code.push(c);
+            }
+        }
+    }
+
+    pub fn insert(&mut self, mut offset: usize, c: char) {
+        // -> Result<(), String> {
+        self.code.insert(offset, c);
+        // for line in &mut self.lines {
+        //     if pos < line.len() {
+        //         line.insert(pos, c);
+        //         return Ok(());
+        //     }
+        //     pos -= line.len();
+        // }
+        // Err(format!("Index out of bound"))
+    }
+
+    pub fn remove(&mut self, mut offset: usize) {
+        // -> Result<(), String> {
+        self.code.remove(offset);
+        // for line in &mut self.lines {
+        //     if pos < line.len() {
+        //         line.remove(pos);
+        //         return Ok(());
+        //     }
+        //     pos -= line.len();
+        // }
+        // Err(format!("Index out of bound"))
+    }
+
+    pub fn lines(&self) -> Vec<Vec<char>> {
+        let mut lines = Vec::<Vec<char>>::new();
+        let mut line = Vec::<char>::new();
+        for &c in &self.code {
+            if c == '\n' {
                 line.push(' ');
-                self.lines.push(line);
-                line = vec![' '; 2 * dept];
+                lines.push(line);
+                line = Vec::<char>::new();
             } else {
                 line.push(c);
             }
         }
-        // &self.lines
+        lines
     }
 
-    pub fn insert(&mut self, mut pos: usize, c: char) -> Result<(), String> {
-        for line in &mut self.lines {
-            if pos < line.len() {
-                line.insert(pos, c);
-                return Ok(());
+    pub fn code(&self) -> &Vec<char> {
+        &self.code
+    }
+
+    pub fn len(&self) -> usize {
+        self.code.len()
+    }
+
+    fn bracklet_map(&mut self) -> Vec<usize> {
+        let mut bracklet_map = vec![0usize; self.len()];
+        let mut stack = Vec::new();
+        for (i, char) in self.code.iter().enumerate() {
+            match char {
+                '[' => stack.push(i),
+                ']' => {
+                    let origin = stack.pop().expect(&format!(
+                        "Closed bracklet at position {} without corresponding '['.",
+                        i
+                    ));
+                    //     Some(indice) => indice,
+                    //     None => {     return Err(format!(
+                    //                        "Closed bracklet at position {} without corresponding '['.",
+                    //                        i
+                    //                    ));
+                    //                }
+                    // };
+                    bracklet_map[i] = origin;
+                    bracklet_map[origin] = i;
+                }
+                _ => {}
             }
-            pos -= line.len();
         }
-        Err(format!("Index out of bound"))
-    }
+        // match stack.pop() {
+        //     Some(indice) => {
+        //         return Err(format!(
+        //             "Opening bracklet found at position {} was never closed.",
+        //             indice
+        //         ));
+        //     }
+        //     None => {}
+        // }
+        // _ = stack.pop().expect(&format!(
+        //     "Opening bracklet found at position {} was never closed.",
+        //     indice
+        // ));
 
-    pub fn remove(&mut self, mut pos: usize) -> Result<(), String> {
-        for line in &mut self.lines {
-            if pos < line.len() {
-                line.remove(pos);
-                return Ok(());
+        if stack.len() != 0 {
+            for pos in stack {
+                panic!("Opening bracklet was never closed.");
+                // panic!(format!(
+                //     "Opening bracklet found at position {} was never closed.",
+                //     pos
+                // ));
             }
-            pos -= line.len();
         }
-        Err(format!("Index out of bound"))
-    }
-
-    pub fn lines(&self) -> &Vec<Vec<char>> {
-        &self.lines
-    }
-
-    pub fn code(&self) -> Vec<char> {
-        let mut code: Vec<char> = Vec::new();
-        for line in self.lines.clone() {
-            code.extend(line);
-            // code.extend(vec!['\n']);
-        }
-        code
+        bracklet_map
     }
 }
 
@@ -88,10 +252,10 @@ impl Code {
 pub struct InterpreterState {
     // pub code: Vec<char>,
     // last_action: Option<char>,
-    pub tape: Vec<u8>,
+    tape: Vec<u8>,
     pub ptr: usize,
     pub step: usize,
-    pub output: Vec<u8>,
+    output: Vec<u8>,
 }
 
 impl InterpreterState {
@@ -120,10 +284,10 @@ impl InterpreterState {
 
 // #[derive(Debug)]
 pub struct Interpreter {
-    pub state: InterpreterState,
+    state: InterpreterState,
     pub code: Code,
     // pub code: Vec<char>,
-    pub bracklet_map: Vec<usize>,
+    bracklet_map: Vec<usize>,
     // pub tape: Vec<u8>,
     // pub ptr: usize,
     // pub step: usize,
@@ -150,131 +314,64 @@ pub enum Effect {
 }
 
 impl Interpreter {
-    pub fn new(raw_code: String, tape_size: usize) -> Self {
+    pub fn new(code: Code, tape_size: usize) -> Self {
         let mut interp = Self {
             state: InterpreterState::new(tape_size),
-            code: Code::from(raw_code.chars().collect()),
-            bracklet_map: vec![0usize; raw_code.len()],
+            bracklet_map: Vec::new(),
+            code: code,
             waiting_for_input: false,
         };
-        match interp.build_bracklet_map() {
-            Ok(()) => {}
-            Err(e) => println!("{}", e),
-        };
+        interp.build_bracklet_map();
         interp
     }
 
     pub fn reset(&mut self) {
         self.state = InterpreterState::new(self.state.tape.len());
-        self.code = Code::from(self.code.code());
         self.build_bracklet_map();
     }
 
-    pub fn code_insert(&mut self, pos: usize, c: char) {
-        self.state.code.insert(pos, c);
+    pub fn build_bracklet_map(&mut self) {
+        self.bracklet_map = self.code.bracklet_map()
     }
 
-    pub fn code_del(&mut self, pos: usize) {
-        self.state.code.remove(pos);
-    }
+    // pub fn code_insert(&mut self, pos: usize, c: char) {
+    //     self.code.insert(pos, c);
+    // }
 
-    pub fn indent(&mut self, mut cursor_pos: usize) -> usize {
-        let mut dept: usize = 0;
-        let old_code = self.state.code.clone();
-        self.state.code = Vec::new();
-        // let mut line: Vec<char> = Vec::new();
-        let mut offset: usize = 0;
-        for (i, &c) in old_code.iter().enumerate() {
-            if c == '[' {
-                dept += 1;
-                self.state.code.extend(vec![c, '\n']);
-                self.state.code.extend(vec![' '; 2 * dept]);
-                offset += 2 * (dept + 1)
-            } else if c == '\n' {
-                self.state.code.push('\n');
-                self.state.code.extend(vec![' '; 2 * dept]);
-            } else if c == ']' {
-                self.state.code.push('\n');
-                dept -= 1;
-                self.state.code.extend(vec![' '; 2 * dept]);
-                self.state.code.extend(vec![c, '\n']);
-                self.state.code.extend(vec![' '; 2 * dept]);
-            } else {
-                self.state.code.push(c);
-            }
-        }
-        cursor_pos
-    }
+    // pub fn code_del(&mut self, pos: usize) {
+    //     self.code.remove(pos);
+    // }
 
-    fn clean(&mut self, mut cursor_pos: usize) -> usize {
-        let old_code = self.state.code.clone();
-        let mut space = false;
-        let mut enter = false;
-        let mut offset: usize = 0;
-        for (i, &c) in old_code.iter().enumerate() {
-            match c {
-                ' ' => {
-                    if space {
-                        self.state.code.remove(i);
-                        offset += 1;
-                    } else {
-                        space = true;
-                    }
-                }
-                '\n' => {
-                    if enter {
-                        self.state.code.remove(i);
-                        offset += 1;
-                    } else {
-                        enter = true;
-                    }
-                }
-                _ => {
-                    space = false;
-                    enter = false;
-                } // if i==cursor_pos {
-                  //     cursor_pos +=
-                  //     }
-            }
-        }
-        cursor_pos
-    }
-
-    fn build_bracklet_map(&mut self) -> Result<(), String> {
-        let mut stack = Vec::new();
-        for (i, char) in self.state.code.iter().enumerate() {
-            match char {
-                '[' => stack.push(i),
-                ']' => {
-                    let origin = match stack.pop() {
-                        Some(indice) => indice,
-                        None => {
-                            return Err(format!(
-                                "Closed bracklet at position {} without corresponding '['.",
-                                i
-                            ));
-                        }
-                    };
-                    self.bracklet_map[i] = origin;
-                    self.bracklet_map[origin] = i;
-                }
-                _ => {}
-            }
-        }
-        match stack.pop() {
-            Some(indice) => {
-                return Err(format!(
-                    "Opening bracklet found at position {} was never closed.",
-                    indice
-                ));
-            }
-            None => {}
-        }
-        Ok(())
-    }
+    // pub fn indent(&mut self, mut cursor_pos: usize) -> usize {
+    //     let mut dept: usize = 0;
+    //     let old_code = self.state.code.clone();
+    //     self.state.code = Vec::new();
+    //     // let mut line: Vec<char> = Vec::new();
+    //     let mut offset: usize = 0;
+    //     for (i, &c) in old_code.iter().enumerate() {
+    //         if c == '[' {
+    //             dept += 1;
+    //             self.state.code.extend(vec![c, '\n']);
+    //             self.state.code.extend(vec![' '; 2 * dept]);
+    //             offset += 2 * (dept + 1)
+    //         } else if c == '\n' {
+    //             self.state.code.push('\n');
+    //             self.state.code.extend(vec![' '; 2 * dept]);
+    //         } else if c == ']' {
+    //             self.state.code.push('\n');
+    //             dept -= 1;
+    //             self.state.code.extend(vec![' '; 2 * dept]);
+    //             self.state.code.extend(vec![c, '\n']);
+    //             self.state.code.extend(vec![' '; 2 * dept]);
+    //         } else {
+    //             self.state.code.push(c);
+    //         }
+    //     }
+    //     cursor_pos
+    // }
 
     pub fn exec_current_step(&mut self, entry: Option<u8>) -> Option<Effect> {
-        if self.state.step == self.state.code.len() {
+        if self.state.step == self.code.len() {
             return Some(Effect::End);
         }
         if self.waiting_for_input {
@@ -285,7 +382,7 @@ impl Interpreter {
             return None;
         }
 
-        match self.state.code[self.state.step] {
+        match self.code.code()[self.state.step] {
             '>' => self.state.ptr += 1,
             '<' => self.state.ptr -= 1,
             '+' => {
@@ -316,5 +413,9 @@ impl Interpreter {
 
     pub fn state(&self) -> &InterpreterState {
         &self.state
+    }
+
+    pub fn code(&self) -> &Code {
+        &self.code
     }
 }

@@ -74,7 +74,8 @@ impl Controller {
         let mut state = self.model.state();
         let mut last_step = Instant::now();
         loop {
-            self.view.render(self.model.state(), self.mode);
+            self.view
+                .render(self.model.state(), self.model.code(), self.mode);
 
             match self.view.poll(self.model.state(), self.mode) {
                 FrontendEvent::Run => {
@@ -88,8 +89,8 @@ impl Controller {
                     entry = Some(c as u8);
                     self.mode = Mode::Execution(ExecutionState::Running);
                 }
-                FrontendEvent::CharTyped(pos, c) => self.model.code_insert(pos, c),
-                FrontendEvent::CharErased(pos) => self.model.code_del(pos),
+                FrontendEvent::CharTyped(pos, c) => self.model.code.insert(pos, c),
+                FrontendEvent::CharErased(pos) => self.model.code.remove(pos),
                 FrontendEvent::Resized => {}
                 FrontendEvent::None => {}
                 FrontendEvent::Quit => break,
@@ -122,13 +123,14 @@ fn main() {
     //     println!("{s}");
     // }
     // thread::sleep(Duration::from_millis(100000));
+    let mut code = Code::from_string(raw_code);
     let mut controller = Controller {
         options: ExecOptions {
             delay_ms: 50,
             tape_size: 100,
         },
         // options: ExecOptions::default(),
-        model: Interpreter::new(raw_code.trim().to_string(), DEFAULT_TAPE_SIZE),
+        model: Interpreter::new(code, DEFAULT_TAPE_SIZE),
         view: CommandLineInterface::new(),
         mode: Mode::Edition,
     };

@@ -70,6 +70,7 @@ classDiagram
 ```mermaid
 
 sequenceDiagram
+    title Mode Poulet
     autonumber
 
     participant U as Utilisateur
