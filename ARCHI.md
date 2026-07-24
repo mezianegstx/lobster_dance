@@ -19,21 +19,26 @@ stateDiagram-v2
 
 ```mermaid
 classDiagram
-    class MaStruct {
-        <<struct>>
-        -champ_a: i32
-        -champ_b: String
-        +new() MaStruct
+    class Direction {
+        North
+        South
     }
-
-    class MonEnum {
-        <<enumeration>>
-        VarianteA
-        VarianteB
-        VarianteC
+    class Point {
+        +f64 x
+        +f64 y
     }
+    class Drawable {
+        +draw() void
+    }
+    Point ..|> Drawable
 
+    cssClass "Direction" enumStyle
+    cssClass "Point" structStyle
+    cssClass "Drawable" traitStyle
 
+    classDef enumStyle fill:#f9e79f
+    classDef structStyle fill:#aed6f1
+    classDef traitStyle fill:#000000
 ```
 ```mermaid
 classDiagram
