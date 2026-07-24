@@ -67,3 +67,63 @@ classDiagram
     View --> Controller : délègue les actions
     Model --> View : notifie (observateur)
 ```
+```mermaid
+
+sequenceDiagram
+    autonumber
+
+    participant U as Utilisateur
+    actor A as Admin
+    participant F as Frontend
+    participant API as API Server
+    participant DB as Database
+
+    Note over U,DB: Scénario complet de démonstration
+
+    U->>F: Requête de connexion
+    activate F
+    F->>+API: POST /login
+    API->>+DB: SELECT user
+    DB-->>-API: résultat
+    alt identifiants valides
+        API-->>F: 200 OK + token
+    else identifiants invalides
+        API-->>F: 401 Unauthorized
+    end
+    deactivate API
+    F-->>-U: Affiche résultat
+
+    loop toutes les 30s
+        F->>API: heartbeat
+        API-->>F: pong
+    end
+
+    par Envoi notification
+        API->>DB: log event
+    and Envoi email
+        API->>API: sendEmail()
+    end
+
+    opt si l'utilisateur est admin
+        U->>A: Notifie l'admin
+    end
+
+    critical Connexion à la base
+        API->>DB: ping
+    option échec réseau
+        API->>API: retry
+    end
+
+    rect rgb(230, 240, 255)
+        Note right of API: Zone critique
+        API->>DB: transaction
+        break si erreur fatale
+            DB-->>API: erreur
+        end
+    end
+
+    U-xF: Requête annulée (message perdu)
+    F--)API: Message asynchrone (fire-and-forget)
+
+    Note left of U: Fin du scénario
+```
